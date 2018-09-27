@@ -25,3 +25,5 @@ spd_ex-*.tar
 # Ignore output
 /output.csv
 
+# Ignore .elixir_ls
+/.elixir_ls 

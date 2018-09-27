@@ -4,8 +4,8 @@ defmodule SpdEx do
   """
   @c  1
   @d  0
-  @n  100
-  @time  1000
+  @n  1000
+  @time  100
 
   @doc """
     Main function
@@ -40,7 +40,7 @@ defmodule SpdEx do
       IO.puts "Initial condition, Dg: #{Float.floor(dg, 1)}, Dr: #{Float.floor(dr, 1)}, Fc: #{Float.floor(hd(fc_list), 2)}"
     end
 
-    %SpdEx.Result{agents: new_agent_list} = result |> payoff |> pf_update |> update_strategy
+    %SpdEx.Result{agents: new_agent_list} = result |> payoff |> im_update |> update_strategy
     fc = new_agent_list |> get_fraction
     new_fc_list = [fc] ++ fc_list
     new_result = %SpdEx.Result{result | agents: new_agent_list, fc: new_fc_list}
@@ -92,7 +92,7 @@ defmodule SpdEx do
   end
 
   @doc """
-    Decide the next strategy based on PW-Fermi
+    Decide the next strategy by PW-Fermi rule
   """
   def pf_update(%SpdEx.Result{agents: agent_list} = result) do
     after_pf = Enum.map agent_list, fn(%SpdEx.Agent{neighbors_id: neighbors_id, strategy: focal_strategy, point: focal_point} = focal) ->
@@ -115,10 +115,35 @@ defmodule SpdEx do
   end
 
   @doc """
+    Decide the next strategy by Imitation-Max rule
+  """
+  def im_update(%SpdEx.Result{agents: agent_list} = result) do
+    after_im = Enum.map agent_list, fn(%SpdEx.Agent{neighbors_id: neighbors_id, strategy: focal_strategy, point: focal_point} = focal) ->
+
+      # Get neighbors of focal agent
+      neighbors = Enum.filter agent_list, fn(%SpdEx.Agent{id: agent_id}) -> agent_id in neighbors_id end
+
+      max_point = neighbors
+      |> Enum.map(fn(%SpdEx.Agent{point: neighbor_point}) -> neighbor_point end)
+      |> Enum.max
+
+      if max_point > focal_point do
+        [%SpdEx.Agent{strategy: best_strategy} | _tail] = Enum.filter neighbors, fn(%SpdEx.Agent{point: point}) -> point == max_point end
+        %SpdEx.Agent{focal | next_strategy: best_strategy}      # Change strategy
+      else
+        %SpdEx.Agent{focal | next_strategy: focal_strategy}     # Keep the same strategy
+      end
+    end
+
+    %SpdEx.Result{result | agents: after_im}
+  end
+
+  @doc """
     Count payoff obtained in one timestep
   """
   def payoff(%SpdEx.Result{dg: dg, dr: dr, agents: agent_list} = result) do
     after_payoff = Enum.map agent_list, fn(%SpdEx.Agent{neighbors_id: neighbors_id, strategy: focal_strategy, point: _point} = focal) ->
+
       # Get neighbors of focal agent
       neighbors = Enum.filter(agent_list, fn(%SpdEx.Agent{id: agent_id}) -> agent_id in neighbors_id end)
 
@@ -155,7 +180,7 @@ defmodule SpdEx do
   end
 
   @doc """
-    Set initial cooperators and defectors
+    Set initial cooperators
   """
   def init_strategy(%SpdEx.Result{agents: agent_list} = result, init_cid) do
     initialized_agent = Enum.map agent_list, fn(%SpdEx.Agent{id: id} = agent) ->
