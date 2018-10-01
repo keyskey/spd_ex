@@ -1,20 +1,20 @@
 defmodule SpdEx do
   @moduledoc """
-  Multi-agent simulation code for Spatial Prisoners Dilemma Game.
+  Main module
   """
   @c  1
   @d  0
   @n  1000
   @average_degree 8
-  @time  100
+  @time  500
 
   @doc """
-    Main function
+  Main function
   """
   def main do
     File.write "output.csv", "Dg, Dr, Fc \n"
-    init_cid = Enum.take_random( 0..@n, div(@n, 2) )                     # Half of the entire population is initially cooperative
-    dilemma_range = Enum.map 1..10, fn(number) -> number * 0.1 end       # return [0, 0.1, 0.2, ..., 1.0]
+    init_cid = Enum.take_random(0..@n, div(@n, 2))                     # Half of the entire population is initially cooperative
+    dilemma_range = Enum.map 0..10, fn(number) -> number * 0.1 end       # return [0, 0.1, 0.2, ..., 1.0]
     init_fc = length(init_cid)/@n                                        # Initial Fc should be 0.5
 
     Enum.map dilemma_range, fn(dg) ->
@@ -28,7 +28,7 @@ defmodule SpdEx do
   end
 
   @doc """
-    Time evolution loop. The entire procedure is as follows;
+  Time evolution loop. The entire procedure is as follows;
     1. Agents get payoff
     2. Decide the next strategy based on PW-Fermi
     3. Update strategy
@@ -42,7 +42,7 @@ defmodule SpdEx do
     end
 
     %SpdEx.Result{agents: new_agent_list} = result |> payoff |> im_update |> update_strategy  
-    fc = new_agent_list |> get_fraction
+    fc = get_fraction(new_agent_list)
     new_fc_list = [fc] ++ fc_list
     new_result = %SpdEx.Result{result | agents: new_agent_list, fc: new_fc_list}
     IO.puts "Dg: #{Float.floor(dg, 1)}, Dr: #{Float.floor(dr, 1)}, Time: #{time}, Fc: #{Float.floor(fc, 2)}"
@@ -56,14 +56,14 @@ defmodule SpdEx do
   end
 
   @doc """
-    Write the fraction of cooperators to csv file
+  Write the fraction of cooperators to csv file
   """
   def write_to_csv(%SpdEx.Result{dg: dg, dr: dr, fc: [head | _tail] }) do
     File.write "output.csv", "#{Float.floor(dg, 1)}, #{Float.floor(dr, 1)}, #{Float.floor(head, 2)} \n", [:append]
   end
 
   @doc """
-    Check whether the calculation is converged or not.
+  Check whether the calculation is converged or not.
   """
   def converged?([head | _tail] = fc_list) do
     cond do
@@ -77,7 +77,7 @@ defmodule SpdEx do
   end
 
   @doc """
-    Return fraction of cooepartors
+  Return fraction of cooepartors
   """
   def get_fraction(agent_list) do
     num_c = Enum.filter(agent_list, fn(%SpdEx.Agent{strategy: strategy}) -> strategy == @c end) |> length
@@ -85,7 +85,7 @@ defmodule SpdEx do
   end
 
   @doc """
-    Insert next strategy into current strategy
+  Insert next strategy into current strategy
   """
   def update_strategy(%SpdEx.Result{agents: agent_list} = result) do
     after_update = Enum.map agent_list, fn(%SpdEx.Agent{next_strategy: next_strategy} = focal) -> %SpdEx.Agent{focal | strategy: next_strategy} end
@@ -94,20 +94,17 @@ defmodule SpdEx do
   end
 
   @doc """
-    Decide the next strategy by PW-Fermi rule
+  Decide the next strategy by PW-Fermi rule
   """
   def pf_update(%SpdEx.Result{agents: agent_list} = result) do
     after_pf = Enum.map agent_list, fn(%SpdEx.Agent{neighbors_id: neighbors_id, strategy: focal_strategy, point: focal_point} = focal) ->
 
-      # Get neighbors of focal agent
-      neighbors = Enum.filter agent_list, fn(%SpdEx.Agent{id: agent_id}) -> agent_id in neighbors_id end
+      # Randomely choose one game opponent from neighbors and get his point & strategy
+      %SpdEx.Agent{point: opp_point, strategy: opp_strategy} = agent_list |> get_neighbors(neighbors_id) |> Enum.random
 
-      # Randomely choose game opponent from neighbors and get his point & strategy
-      %SpdEx.Agent{point: opp_point, strategy: opp_strategy} = Enum.random(neighbors)
-
-      # Pairwise comparison
+      # Determine whether copy opponent's strategy or keep the same strategy
       if :rand.uniform < 1/(1 + :math.exp((focal_point - opp_point)/0.1)) do
-        %SpdEx.Agent{focal | next_strategy: opp_strategy}      # Change strategy
+        %SpdEx.Agent{focal | next_strategy: opp_strategy}      # Copy opponent's strategy
       else
         %SpdEx.Agent{focal | next_strategy: focal_strategy}    # Keep the same strategy
       end
@@ -117,21 +114,19 @@ defmodule SpdEx do
   end
 
   @doc """
-    Decide the next strategy by Imitation-Max rule
+  Decide the next strategy by Imitation-Max rule
   """
   def im_update(%SpdEx.Result{agents: agent_list} = result) do
     after_im = Enum.map agent_list, fn(%SpdEx.Agent{neighbors_id: neighbors_id, strategy: focal_strategy, point: focal_point} = focal) ->
 
-      # Get neighbors of focal agent
-      neighbors = Enum.filter agent_list, fn(%SpdEx.Agent{id: agent_id}) -> agent_id in neighbors_id end
+      # Make the list of neighbors' point and get the highest one(=max_point)
+      neighbors = get_neighbors(agent_list, neighbors_id)
+      max_point = neighbors |> Enum.map(fn(%SpdEx.Agent{point: neighbor_point}) -> neighbor_point end) |> Enum.max
 
-      max_point = neighbors
-      |> Enum.map(fn(%SpdEx.Agent{point: neighbor_point}) -> neighbor_point end)
-      |> Enum.max
-
+      # Determine wheter copy the strategy of the neighbor who obtained the highest payoff or keep the same strategy 
       if max_point > focal_point do
         [%SpdEx.Agent{strategy: best_strategy} | _tail] = Enum.filter neighbors, fn(%SpdEx.Agent{point: point}) -> point == max_point end
-        %SpdEx.Agent{focal | next_strategy: best_strategy}      # Change strategy
+        %SpdEx.Agent{focal | next_strategy: best_strategy}      # Copy the best_strategy of neighbors
       else
         %SpdEx.Agent{focal | next_strategy: focal_strategy}     # Keep the same strategy
       end
@@ -141,16 +136,15 @@ defmodule SpdEx do
   end
 
   @doc """
-    Count payoff obtained in one timestep
+  Count payoff obtained in one timestep
   """
   def payoff(%SpdEx.Result{dg: dg, dr: dr, agents: agent_list} = result) do
     after_payoff = Enum.map agent_list, fn(%SpdEx.Agent{neighbors_id: neighbors_id, strategy: focal_strategy, point: _point} = focal) ->
 
-      # Get neighbors of focal agent
-      neighbors = Enum.filter(agent_list, fn(%SpdEx.Agent{id: agent_id}) -> agent_id in neighbors_id end)
-
       # Store payoff obtained in the game with each neighbor in a list
-      total_point = Enum.map(neighbors, fn(%SpdEx.Agent{strategy: neighbor_strategy}) ->
+      total_point = agent_list
+      |> get_neighbors(neighbors_id)
+      |> Enum.map(fn(%SpdEx.Agent{strategy: neighbor_strategy}) ->
           cond do
             neighbor_strategy == @c and focal_strategy == @c -> 1
             neighbor_strategy == @c and focal_strategy == @d -> 1+dg
@@ -158,7 +152,7 @@ defmodule SpdEx do
             neighbor_strategy == @d and focal_strategy == @d -> 0
           end
         end)
-        |> Enum.sum
+      |> Enum.sum
 
       %SpdEx.Agent{focal | point: total_point}
     end
@@ -167,8 +161,15 @@ defmodule SpdEx do
   end
 
   @doc """
-    Add neighbors to all agents.
-    Only neighbor's id is provided to focal agents. 
+  From the given agent_list, search agents whose ID is in the given neighbors_id
+  """
+  def get_neighbors(agent_list, neighbors_id) do
+    Enum.filter agent_list, fn(%SpdEx.Agent{id: id}) -> id in neighbors_id end
+  end
+
+  @doc """
+  Add neighbors to all agents.
+  Only neighbor's id is provided to focal agents. 
   """
   def link_agents(%SpdEx.Result{agents: agent_list} = result) do
     agents_with_neighbors_id = Enum.map agent_list, fn(%SpdEx.Agent{id: focal_id} = agent) ->
@@ -184,7 +185,7 @@ defmodule SpdEx do
   end
 
   @doc """
-    Set initial cooperators
+  Set initial cooperators
   """
   def init_strategy(%SpdEx.Result{agents: agent_list} = result, init_cid) do
     initialized_agent = Enum.map agent_list, fn(%SpdEx.Agent{id: id} = agent) ->
@@ -199,7 +200,7 @@ defmodule SpdEx do
   end
 
   @doc """
-    Generate n agents with continuous ID from 1 to n
+  Generate n agents with continuous ID from 1 to n
   """
   def generate_agents(n) do
     Enum.map 1..n, fn(id) -> %SpdEx.Agent{id: id} end
