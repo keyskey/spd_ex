@@ -6,6 +6,12 @@ defmodule SpdEx.MixProject do
       app: :spd_ex,
       version: "0.1.0",
       elixir: "~> 1.7",
+      description: "Multi-Agent Simulation Code for Spatial Prisoner's Dilemma Game",
+      package: [
+        maintainers: ["Kei"],
+        licenses: ["MIT"],
+        links: %{"GitHub" => "https://github.com/keyskey/spd_ex"}
+      ],
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
