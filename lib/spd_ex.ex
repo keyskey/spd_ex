@@ -5,6 +5,7 @@ defmodule SpdEx do
   @c  1
   @d  0
   @n  1000
+  @average_degree 8
   @time  100
 
   @doc """
@@ -12,16 +13,16 @@ defmodule SpdEx do
   """
   def main do
     File.write "output.csv", "Dg, Dr, Fc \n"
-    init_cid = Enum.take_random( 0..@n, div(@n, 2) )                     # Half of the entire agents are initially cooperative
-    dilemma_range = Enum.map 1..10, fn(number) -> number * 0.1 end        # return [0, 0.1, 0.2, ..., 1.0]
-    init_fc = length(init_cid)/@n
+    init_cid = Enum.take_random( 0..@n, div(@n, 2) )                     # Half of the entire population is initially cooperative
+    dilemma_range = Enum.map 1..10, fn(number) -> number * 0.1 end       # return [0, 0.1, 0.2, ..., 1.0]
+    init_fc = length(init_cid)/@n                                        # Initial Fc should be 0.5
 
     Enum.map dilemma_range, fn(dg) ->
       Enum.map dilemma_range, fn(dr) ->
         %SpdEx.Result{agents: generate_agents(@n), dg: dg, dr: dr, fc: [init_fc]}
         |> init_strategy(init_cid)
         |> link_agents
-        |> timestep(0)
+        |> timestep(0)          # Go to recursive loop  
       end
     end
   end
@@ -40,13 +41,14 @@ defmodule SpdEx do
       IO.puts "Initial condition, Dg: #{Float.floor(dg, 1)}, Dr: #{Float.floor(dr, 1)}, Fc: #{Float.floor(hd(fc_list), 2)}"
     end
 
-    %SpdEx.Result{agents: new_agent_list} = result |> payoff |> im_update |> update_strategy
+    %SpdEx.Result{agents: new_agent_list} = result |> payoff |> im_update |> update_strategy  
     fc = new_agent_list |> get_fraction
     new_fc_list = [fc] ++ fc_list
     new_result = %SpdEx.Result{result | agents: new_agent_list, fc: new_fc_list}
     IO.puts "Dg: #{Float.floor(dg, 1)}, Dr: #{Float.floor(dr, 1)}, Time: #{time}, Fc: #{Float.floor(fc, 2)}"
 
-    if converged?(new_fc_list) || time == @time do
+    # Check if Fc is converged or not.
+    if converged?(new_fc_list) or time == @time do
       write_to_csv(new_result)
     else
       timestep(new_result, time + 1)
@@ -75,7 +77,7 @@ defmodule SpdEx do
   end
 
   @doc """
-    Return the fraction of cooepartors
+    Return fraction of cooepartors
   """
   def get_fraction(agent_list) do
     num_c = Enum.filter(agent_list, fn(%SpdEx.Agent{strategy: strategy}) -> strategy == @c end) |> length
@@ -166,12 +168,14 @@ defmodule SpdEx do
 
   @doc """
     Add neighbors to all agents.
-    Just neighbors_id is provided to focal agents. Evergy time extracting the the agents with corresponding neighbors_id from the entire population.
+    Only neighbor's id is provided to focal agents. 
   """
   def link_agents(%SpdEx.Result{agents: agent_list} = result) do
-    agent_number = length(agent_list)
     agents_with_neighbors_id = Enum.map agent_list, fn(%SpdEx.Agent{id: focal_id} = agent) ->
-      neighbors_id = 1..agent_number |> Enum.to_list |> List.delete(focal_id) |> Enum.take_random(8)
+    
+      # Neighbors are chosen from the entire population, except for focal itself.
+      # Current version just assuming random graph for its simplicity, but other network topology will added in the future...
+      neighbors_id = 1..@n |> Enum.to_list |> List.delete(focal_id) |> Enum.take_random(@average_degree)
 
       %SpdEx.Agent{agent | neighbors_id: neighbors_id}
     end
