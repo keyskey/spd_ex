@@ -5,7 +5,7 @@ Current version is not parallelized by Flow, but parallel calculation version wi
 
 ## Installation
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
+This package can be installed
 by adding `spd_ex` to your list of dependencies in `mix.exs`:
 
 ```elixir
@@ -15,8 +15,24 @@ def deps do
   ]
 end
 ```
+Then, in your terminal;
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at [https://hexdocs.pm/spd_ex](https://hexdocs.pm/spd_ex).
+```shell
+$ mix deps.get
+```
+to install dependencies.
 
+## Usage
+Open interactive Elixir shell with ```iex -S mix``` and Just type;
+
+```shell
+iex > SpdEx.main
+```
+After the calculation, you'll get an output file with csv format.
+ 
+## Documentation
+
+Documentation can be found at [https://hexdocs.pm/spd_ex](https://hexdocs.pm/spd_ex).
+
+## License
+Copyright © 2018 Keisuke Nagashima, released under MIT license.
