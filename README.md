@@ -1,6 +1,7 @@
 # SpdEx
 
-**TODO: Add description**
+Spatial Prisoner's Dilemma Game (assuming random graph as a social network) implemented by Elixir.
+Current version is not parallelized by Flow, but parallel calculation version will be definitely available in the near future.
 
 ## Installation
 
